@@ -5,7 +5,7 @@
 
 This tool maintains two distinct workflows: a **Private Dev** workflow that tracks all files (including documentation and tools), and a **Public Release** workflow that strips sensitive or unnecessary files before pushing to the public repository.
 
-**Version**: 1.1.0  
+**Version**: 1.1.2  
 **Author**: mamba
 
 ---
@@ -17,21 +17,26 @@ This tool maintains two distinct workflows: a **Private Dev** workflow that trac
 | **Public Release** | Squash merges ```dev``` to ```master``` while stripping tools, scripts, and build folders. |
 | **Auto-Conflict Fix** | Uses ```-X theirs``` to ensure dev branch always overwrites master. |
 | **Zip Archiving** | Creates Source backups or Release (DLL) packages automatically. |
+| **Full Backup** | Creates a timestamped ```.zip``` of the entire project folder in the parent directory. |
 | **GH CLI Deploy** | Automated Release ZIP creation and GitHub Release upload in one step. |
 
 ---
 ## 📝 Usage
 
 ### 1. Dev Sync (Private)
-> python sync.py
+> ```python sync.py```
 *Syncs all files to your private dev branch. Updates README version automatically.*
 
 ### 2. Manual Backup (Source ZIP)
-> python sync.py --zip
+> ```python sync.py --zip```
 *Creates a ZIP archive of your source code based on predefined file list.*
 
-### 3. Full Deploy (Public Release)
-> python sync.py --deploy
+### 3. Full Project Backup
+> ```python sync.py --full-backup```
+*Creates a full archive ```[timestamp]_[version]_FULL_mambaTDS_[branch].zip``` in the parent folder.*
+
+### 4. Full Deploy (Public Release)
+> ```python sync.py --deploy```
 *Master squash + DLL Release ZIP + GitHub Release upload via GH CLI.*
 
 ---
@@ -42,7 +47,7 @@ This tool maintains two distinct workflows: a **Private Dev** workflow that trac
 DevRemote = private
 ReleaseRemote = origin
 ProjectName = mamba.TorchDiscordSync
-ScriptVersion = 1.1.0
+ScriptVersion = 1.1.2
 LogDir = logs
 ```
 
