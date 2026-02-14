@@ -1,4 +1,3 @@
-"""
 # MAMBA SYNC TOOL (sync.py)
 
 ---
@@ -48,6 +47,8 @@ LogDir = logs
 ```
 
 ---
-## 🤝 Support
+## ☕ Support
+If you like this project and want to support development:
 [Buy Me a Coffee ☕](https://buymeacoffee.com/mamba73)
-"""
+
+*Developed by [mamba73](https://github.com/mamba73). Feel free to submit issues or pull requests!*
