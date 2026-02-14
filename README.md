@@ -15,8 +15,8 @@ This tool maintains two distinct workflows: a **Private Dev** workflow that trac
 | Feature | Description |
 | :--- | :--- |
 | **Private Sync** | Pushes everything (including scripts and tools) to the private remote. |
-| **Public Release** | Squash merges ```dev[/code] to ```master[/code] while stripping tools, scripts, and build folders. |
-| **Auto-Conflict Fix** | Uses ```-X theirs[/code] to ensure dev branch always overwrites master. |
+| **Public Release** | Squash merges ```dev``` to ```master``` while stripping tools, scripts, and build folders. |
+| **Auto-Conflict Fix** | Uses ```-X theirs``` to ensure dev branch always overwrites master. |
 | **Zip Archiving** | Creates Source backups or Release (DLL) packages automatically. |
 | **GH CLI Deploy** | Automated Release ZIP creation and GitHub Release upload in one step. |
 
@@ -36,7 +36,7 @@ This tool maintains two distinct workflows: a **Private Dev** workflow that trac
 *Master squash + DLL Release ZIP + GitHub Release upload via GH CLI.*
 
 ---
-## 🛠️ Configuration (```config_sync.ini[/code])
+## 🛠️ Configuration (```config_sync.ini```)
 
 ```
 [SETTINGS]
@@ -45,7 +45,7 @@ ReleaseRemote = origin
 ProjectName = mamba.TorchDiscordSync
 ScriptVersion = 1.1.0
 LogDir = logs
-[/code]
+```
 
 ---
 ## 🤝 Support
