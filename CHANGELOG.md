@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.9.4] - 2026-02-15
+- readme updated
+
 ## [1.9.1] - 2026-02-15
 - v1.9.0 | Auto-changelog update
 
