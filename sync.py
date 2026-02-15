@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # VERSION & METADATA
 # ==============================================================================
-SCRIPT_VER = "1.9.4"
+SCRIPT_VER = "1.9.5"
 
 # --- PATHS ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -160,7 +160,7 @@ def get_current_branch():
     return subprocess.run("git rev-parse --abbrev-ref HEAD", shell=True, text=True, capture_output=True).stdout.strip()
 
 # ==============================================================================
-# REFINED BACKUP SYSTEM
+# ENHANCED BACKUP SYSTEM (FIXED WHITELIST)
 # ==============================================================================
 def create_backup(version, type_label, destination="parent"):
     name = BACKUP_NAME_FORMAT.format(
@@ -184,22 +184,35 @@ def create_backup(version, type_label, destination="parent"):
                 for file in files:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, script_dir)
-                    if file == name: continue
+                    
+                    # 1. Always skip the archive file itself and .git folder
+                    if file == name or '.git' in rel_path: continue
+                    
                     if type_label == "LOCAL_ZIP":
                         allowed = False
+                        # Normalize path to forward slashes for matching
+                        match_path = rel_path.replace('\\', '/')
+                        
                         for p in RELEASE_WHITELIST:
-                            if (p.endswith("/") and rel_path.startswith(p[:-1])) or re.match(p, file):
+                            pattern = p.strip()
+                            # Folder match (e.g., Plugin/)
+                            if pattern.endswith("/") and match_path.startswith(pattern):
                                 allowed = True; break
+                            # Filename regex match (only if file is in root)
+                            if "/" not in match_path:
+                                if re.match(pattern, file):
+                                    allowed = True; break
+                        
                         if not allowed: continue
+                    
                     zipf.write(file_path, rel_path)
                     
-        # File size check logic restored
         file_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
         log_and_print(f"Archive SUCCESS: {zip_path} ({file_size_mb:.2f} MB)", "INFO")
         
         limit = float(cfg.get('MaxZipSizeMB', 100))
         if file_size_mb > limit:
-            log_and_print(f"WARNING: Archive size exceeds {limit}MB! Check content.", "WARNING")
+            log_and_print(f"WARNING: Archive size exceeds {limit}MB!", "WARNING")
             
     except Exception as e:
         log_and_print(f"Archive FAILED: {e}", "ERROR")
