@@ -9,44 +9,45 @@
 ---
 ## 🚀 Features
 
-
 | Feature | Description |
 | :--- | :--- |
-| **Modular Config** | Fully portable! Use the same script across multiple projects by editing ```config_sync.ini```. |
-| **WhiteList Purge** | Guarantees privacy by physically removing any file not explicitly allowed on the public branch. |
-| **Auto-Changelog** | Generates professional ```CHANGELOG.md``` entries automatically from your commit history. |
-| **Validation Engine** | Prevents accidental execution if the project name or directory doesn't match the configuration. |
-| **Log Management** | Automatically cleans up old session logs based on your defined retention policy. |
-| **Clean History** | Provides a "Flattened" history option for public repos, hiding messy dev commits. |
+| **Interactive Setup** | Automatically detects project root and guides you through the initial ```config_sync.ini``` generation. |
+| **Smart Versioning** | Features auto-increment logic with a manual override prompt. Version is synced across Config, Readme, and Manifest. |
+| **WhiteList Purge** | Guarantees privacy by physically removing any file not explicitly allowed on the public branch during sync. |
+| **Auto-Changelog** | Generates professional ```CHANGELOG.md``` entries by parsing git commits since the last tag. |
+| **Secure Sync Engine** | Uses a temporary branch strategy to prevent Master history from overwriting or deleting local Dev files. |
+| **Flattened Release** | Provides a ```--deploy``` option to wipe public history for a clean, single-commit professional appearance. |
 
 ---
 ## 📝 Usage
 
 ### 1. Daily Development Sync
 > ```python sync.py -y```
-*Syncs all files to your private remote with an automatic commit message.*
+*Syncs all files to your private remote. In auto-mode (```-y```), it increments the version and commits automatically.*
 
 ### 2. Incremental Public Update
 > ```python sync.py --update```
-*Generates changelog, purges private files, and adds one clean commit to the public Master branch.*
+*Updates Master branch with a single clean commit. Updates changelog and purges private files without losing Master history.*
 
 ### 3. Full Flattened Release
 > ```python sync.py --deploy```
-*Wipes public history for a fresh start, creates a GitHub Release, and uploads notes via GH CLI.*
+*Wipes public history, creates a fresh Release commit, and uploads a GitHub Release with notes via GH CLI.*
 
-### 4. Open Session Logs
-> ```python sync.py -o```
-*Instantly opens the current log file in VS Code or your default editor.*
+### 4. Backups & Archiving
+> ```python sync.py --full-backup```
+*Creates a full timestamped ZIP of the project in the parent directory, named by project and version.*
 
 ---
-## 🛠️ Setup & Configuration
+## 🛠️ Configuration (```config_sync.ini```)
 
-Upon first run, the script generates a ```config_sync.ini```. You **must** update the ```ProjectName``` to match your folder name.
+The configuration is "self-healing" and will automatically add missing fields.
 
 ```
 [SETTINGS]
-ProjectName = YourProjectFolderName
-DevRemote = private
+LocalFolderName = YourLocalFolder
+RemoteProjectName = PublicProjectName
+DefaultVersion = 1.9.1
+DevRemote = origin
 ReleaseRemote = origin
 DevBranch = dev
 ReleaseBranch = master
