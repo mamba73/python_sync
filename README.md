@@ -11,42 +11,44 @@
 
 | Feature | Description |
 | :--- | :--- |
-| **Interactive Setup** | Automatically detects project root and guides you through the initial ```config_sync.ini``` generation. |
-| **Smart Versioning** | Features auto-increment logic with a manual override prompt. Version is synced across Config, Readme, and Manifest. |
-| **WhiteList Purge** | Guarantees privacy by physically removing any file not explicitly allowed on the public branch during sync. |
-| **Auto-Changelog** | Generates professional ```CHANGELOG.md``` entries by parsing git commits since the last tag. |
-| **Secure Sync Engine** | Uses a temporary branch strategy to prevent Master history from overwriting or deleting local Dev files. |
-| **Flattened Release** | Provides a ```--deploy``` option to wipe public history for a clean, single-commit professional appearance. |
+| **Interactive Root Setup** | Automatically detects your project folder and locks operations to that specific directory for maximum safety. |
+| **Dual-Mode Archiving** | Separate logic for ```--full-backup``` (parent dir, all files) and ```--zip``` (local dir, whitelisted only). |
+| **Smart Versioning** | Auto-increment logic with manual override. Syncs version across Config, Readme, and Manifest files. |
+| **Clean Master Sync** | Uses temporary branch isolation to update Master without risk of deleting or overwriting local Dev files. |
+| **WhiteList Filter** | Physically removes any file/folder not explicitly allowed on the public branch during the release process. |
+| **Auto-Changelog** | Parses git history since the last tag to generate professional ```CHANGELOG.md``` entries. |
 
 ---
 ## 📝 Usage
 
 ### 1. Daily Development Sync
 > ```python sync.py -y```
-*Syncs all files to your private remote. In auto-mode (```-y```), it increments the version and commits automatically.*
+*Automated sync to your private remote. Increments version and commits using "auto sync" message.*
 
-### 2. Incremental Public Update
-> ```python sync.py --update```
-*Updates Master branch with a single clean commit. Updates changelog and purges private files without losing Master history.*
-
-### 3. Full Flattened Release
-> ```python sync.py --deploy```
-*Wipes public history, creates a fresh Release commit, and uploads a GitHub Release with notes via GH CLI.*
-
-### 4. Backups & Archiving
+### 2. Full Project Backup
 > ```python sync.py --full-backup```
-*Creates a full timestamped ZIP of the project in the parent directory, named by project and version.*
+*Creates a complete ZIP archive of the entire project in the ```../``` (parent) directory.*
+
+### 3. Local Release Preview (ZIP)
+> ```python sync.py --zip```
+*Creates a local ZIP in the project root containing ONLY whitelisted files. Perfect for manual distribution.*
+
+### 4. Incremental Public Update
+> ```python sync.py --update```
+*Updates Master branch with a single clean commit. Updates changelog and purges private files.*
+
+### 5. Full Flattened Release
+> ```python sync.py --deploy```
+*Wipes Master history, creates a fresh Release commit, and uploads a GitHub Release via GH CLI.*
 
 ---
 ## 🛠️ Configuration (```config_sync.ini```)
 
-The configuration is "self-healing" and will automatically add missing fields.
-
 ```
 [SETTINGS]
-LocalFolderName = YourLocalFolder
+LocalFolderName = YourProjectFolder
 RemoteProjectName = PublicProjectName
-DefaultVersion = 1.9.1
+DefaultVersion = 1.9.3
 DevRemote = origin
 ReleaseRemote = origin
 DevBranch = dev
