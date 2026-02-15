@@ -1,0 +1,25 @@
+# Python specifics
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IGNORE ALL PYTHON SCRIPTS (Privacy for sync.py and others)
+# *.py
+
+# IGNORE CONFIGURATION (Prevents leaking remotes/paths)
+config_sync.ini
+config_check.ini
+
+# Logs and Build artifacts
+logs/
+*.log
+build_staging/
+build_archive/
+
+# Backups and Archives
+*.zip
+*.bak
+*.old
+
+# VS Code settings
+.vscode/
