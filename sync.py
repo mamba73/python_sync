@@ -6,7 +6,33 @@ import re
 import os
 import zipfile
 import configparser
+import shutil
 from datetime import datetime
+
+# ==============================================================================
+# VERSION & METADATA
+# ==============================================================================
+# Script for synchronizing private development with public releases.
+SCRIPT_VER = "1.4.0"
+
+# ==============================================================================
+# RELEASE WHITELIST (Files allowed on Public Master branch)
+# ==============================================================================
+RELEASE_WHITELIST = [
+    "Plugin/", 
+    "manifest.xml", 
+    ".gitignore", 
+    "LICENSE",
+    "CHANGELOG.md",
+    r".*\.csproj$", 
+    r".*\.sln$", 
+    r".*\.md$"
+]
+
+# ==============================================================================
+# BACKUP CONFIGURATION
+# ==============================================================================
+BACKUP_NAME_FORMAT = "{date}_{time}_{type}_{remote}_mambaTDS_v{version}_{branch}.zip"
 
 # --- CONFIGURATION & PATHS ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,8 +46,7 @@ def load_config():
         'ProjectName': 'mamba.TorchDiscordSync',
         'DevRemote': 'private',
         'ReleaseRemote': 'origin',
-        'KeepLogsDays': '7',
-        'ScriptVersion': '1.1.2'
+        'KeepLogsDays': '7'
     }
     updated = False
     if not os.path.exists(config_file):
@@ -40,168 +65,218 @@ def load_config():
 
 cfg = load_config()
 LOG_DIR = os.path.join(script_dir, cfg.get('LogDir'))
-SCRIPT_VER = cfg.get('ScriptVersion')
+VS_CODE_PATH = cfg.get('VSCodePath')
+
 MANIFEST_PATH = "manifest.xml"
+CHANGELOG_PATH = "CHANGELOG.md"
 README_PATH = "README.md"
 DEV_BRANCH = "dev"
 RELEASE_BRANCH = "master"
-PUBLISH_DIR = "build_staging"
-FILES_TO_ZIP = ["Plugin/", "mamba.TorchDiscordSync.csproj", "mamba.TorchDiscordSync.sln", "manifest.xml", "README.md"]
 
-def log_and_print(message):
-    print(message)
+# ==============================================================================
+# UTILITY FUNCTIONS
+# ==============================================================================
+
+def log_and_print(message, level="INFO"):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted_msg = f"[{ts}] [{level}] {message}"
+    print(formatted_msg)
     if not os.path.exists(LOG_DIR): os.makedirs(LOG_DIR)
-    with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
-        f.write(f"[{ts}] {message}\n")
+    try:
+        with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
+            f.write(formatted_msg + "\n")
+    except: pass
 
-def run(cmd):
+def check_run(cmd, exit_on_fail=True):
+    log_and_print(f"EXECUTING: {cmd}", "DEBUG")
     result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
     if result.returncode != 0:
+        error_msg = result.stderr.strip()
+        log_and_print(f"COMMAND FAILED: {error_msg}", "ERROR")
+        if exit_on_fail: sys.exit(1)
         return None
-    return result.stdout.strip()
+    return result.stdout.strip() if result.stdout else "SUCCESS"
 
-def get_git_info():
-    branch = run("git rev-parse --abbrev-ref HEAD") or "unknown_branch"
-    last_commit = run("git log -1 --format=%h") or "no_commit"
-    return branch, last_commit
+def get_current_branch():
+    return subprocess.run("git rev-parse --abbrev-ref HEAD", shell=True, text=True, capture_output=True).stdout.strip()
+
+def verify_branch(target_branch):
+    current = get_current_branch()
+    if current != target_branch:
+        log_and_print(f"CRITICAL ERROR: Branch mismatch. Expected {target_branch}, got {current}", "ERROR")
+        sys.exit(1)
+
+def verify_directory_safety():
+    current_dir = os.path.basename(os.getcwd())
+    expected_dir = cfg.get('ProjectName')
+    if current_dir != expected_dir:
+        log_and_print(f"CRITICAL ERROR: Directory mismatch! Run in '{expected_dir}'.", "ERROR")
+        sys.exit(1)
 
 def get_project_version():
     try:
-        if not os.path.exists(MANIFEST_PATH):
-            sys.exit(f"CRITICAL: {MANIFEST_PATH} not found!")
+        if not os.path.exists(MANIFEST_PATH): return "0.0.0"
         tree = ET.parse(MANIFEST_PATH)
         root = tree.getroot()
         version_node = root.find('Version')
-        if version_node is not None:
-            return version_node.text.strip()
-        sys.exit("CRITICAL: <Version> tag not found in manifest.xml")
-    except Exception as e:
-        sys.exit(f"CRITICAL: Error parsing manifest.xml: {e}")
+        return version_node.text.strip() if version_node is not None else "0.0.0"
+    except: return "0.0.0"
 
-def update_readme_version(version):
-    if not os.path.exists(README_PATH): return
-    with open(README_PATH, 'r', encoding='utf-8') as f:
-        content = f.read()
-    new_content = re.sub(r'(\*\*Version\*\*:\s*)\d+\.\d+\.\d+', f'\\1{version}', content)
-    with open(README_PATH, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-    log_and_print(f"SUCCESS: README updated to {version}")
+# ==============================================================================
+# CHANGELOG GENERATION SYSTEM
+# ==============================================================================
+def generate_changelog(version):
+    """
+    Extracts commit messages since last tag and updates CHANGELOG.md.
+    Returns the newly generated notes for GitHub Release.
+    """
+    log_and_print("Generating changelog from git history...", "INFO")
+    
+    # 1. Try to find the last tag to get the diff
+    last_tag = subprocess.run("git describe --tags --abbrev=0", shell=True, text=True, capture_output=True).stdout.strip()
+    
+    if last_tag:
+        cmd = f'git log {last_tag}..HEAD --pretty=format:"- %s (%h)"'
+    else:
+        # Fallback if no tags exist: take last 5 commits
+        cmd = 'git log -n 5 --pretty=format:"- %s (%h)"'
+    
+    commits = subprocess.run(cmd, shell=True, text=True, capture_output=True).stdout.strip()
+    
+    if not commits:
+        commits = "- Minor internal updates and improvements."
 
-def create_full_backup(version):
-    ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    branch, last_commit = get_git_info()
-    zip_name = f"{ts}_{version}_FULL_mambaTDS_{branch}.zip"
-    zip_path = os.path.join(script_dir, "..", zip_name)
-    log_and_print(f"STARTING FULL PROJECT BACKUP: {zip_name}")
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    new_entry = f"## [{version}] - {date_str}\n{commits}\n\n"
+
+    # 2. Update local CHANGELOG.md (Prepend)
+    old_content = ""
+    if os.path.exists(CHANGELOG_PATH):
+        with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
+            old_content = f.read()
+
+    # Avoid duplicate entry for the same version
+    if f"## [{version}]" not in old_content:
+        with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
+            f.write("# Changelog\n\n" + new_entry + old_content.replace("# Changelog\n\n", ""))
+        log_and_print(f"CHANGELOG.md updated for version {version}")
+    
+    return commits
+
+# ==============================================================================
+# VERSION & README UTILITIES
+# ==============================================================================
+def update_readme(version):
     try:
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(script_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, script_dir)
-                    zipf.write(file_path, arcname)
-        log_and_print(f"SUCCESS: Backup stored at: {os.path.abspath(zip_path)}")
+        if not os.path.exists(README_PATH): return
+        with open(README_PATH, 'r', encoding='utf-8') as f: content = f.read()
+        pattern = r"(?i)(\*?\*?version\*?\*?[:\s]+)([0-9\.]+)"
+        new_content = re.sub(pattern, rf"\g<1>{version}", content)
+        with open(README_PATH, 'w', encoding='utf-8') as f: f.write(new_content)
+        log_and_print(f"README version updated to {version}")
     except Exception as e:
-        log_and_print(f"ERROR: Backup failed: {e}")
+        log_and_print(f"README update error: {e}", "WARNING")
 
-def create_zip(version, use_staging=False):
-    ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    mode = "Release" if use_staging else "Source"
-    zip_name = f"{cfg.get('ProjectName')}_{mode}_v{version}_{ts}.zip"
-    log_and_print(f"STARTING {mode} ARCHIVE: {zip_name}")
-    try:
-        with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            if use_staging:
-                if not os.path.exists(PUBLISH_DIR): return None
-                for file in os.listdir(PUBLISH_DIR):
-                    zipf.write(os.path.join(PUBLISH_DIR, file), file)
-            else:
-                for item in FILES_TO_ZIP:
-                    if os.path.exists(item):
-                        if os.path.isdir(item):
-                            for r, d, files in os.walk(item):
-                                for file in files:
-                                    fp = os.path.join(r, file)
-                                    zipf.write(fp, os.path.relpath(fp, os.getcwd()))
-                        else: zipf.write(item)
-        log_and_print(f"SUCCESS: {mode} ZIP created.")
-        return zip_name
-    except Exception as e:
-        log_and_print(f"ERROR: ZIP failed: {e}")
-        return None
+# ==============================================================================
+# CORE SYNC LOGIC
+# ==============================================================================
+def apply_whitelist_purge():
+    log_and_print("Purging files not in WhiteList...", "INFO")
+    for item in os.listdir("."):
+        if item == ".git": continue
+        is_allowed = False
+        for pattern in RELEASE_WHITELIST:
+            if pattern.endswith("/") and item == pattern[:-1]: is_allowed = True; break
+            if re.match(pattern, item): is_allowed = True; break
+        if not is_allowed:
+            if os.path.isdir(item): shutil.rmtree(item, ignore_errors=True)
+            else: os.remove(item)
+
+def handle_master_sync(version, auto_confirm, is_deploy):
+    mode = "DEPLOY (FLATTENED)" if is_deploy else "UPDATE (INCREMENTAL)"
+    log_and_print(f"STARTING {mode} v{version}", "WARNING")
+
+    # 1. Dev Pre-check & Changelog
+    if get_current_branch() != DEV_BRANCH:
+        check_run(f"git checkout {DEV_BRANCH}")
+
+    # Generate notes while still on dev branch
+    release_notes = generate_changelog(version)
+
+    check_run("git add CHANGELOG.md")
+    status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True).stdout.strip()
+    if status:
+        check_run(f'git commit -m "v{version} | Update changelog and pre-sync"')
+
+    # 2. Preparation
+    if is_deploy:
+        subprocess.run("git branch -D temp_release", shell=True, capture_output=True)
+        check_run(f"git checkout --orphan temp_release {DEV_BRANCH}")
+    else:
+        check_run(f"git checkout {RELEASE_BRANCH}")
+        verify_branch(RELEASE_BRANCH)
+        check_run(f"git pull {cfg.get('ReleaseRemote')} {RELEASE_BRANCH}")
+        check_run(f"git checkout {DEV_BRANCH} -- .")
+
+    # 3. Clean & Commit
+    apply_whitelist_purge()
+    update_readme(version)
+    check_run("git add -A")
+    commit_msg = f"Release v{version}"
+    check_run(f'git commit -m "{commit_msg}" --allow-empty')
+
+    if is_deploy:
+        check_run(f"git branch -M temp_release {RELEASE_BRANCH}")
+
+    # 4. Push, Tag & GH Release
+    check_run(f"git push {cfg.get('ReleaseRemote')} {RELEASE_BRANCH} {'--force' if is_deploy else ''}")
+    
+    # Tagging the new release
+    subprocess.run(f"git tag -a v{version} -m 'Version {version}'", shell=True)
+    subprocess.run(f"git push {cfg.get('ReleaseRemote')} v{version}", shell=True)
+
+    if is_deploy:
+        repo_url = check_run(f"git remote get-url {cfg.get('ReleaseRemote')}")
+        repo_name = re.sub(r'.*github\.com[:/]', '', repo_url).replace('.git', '')
+        log_and_print(f"Creating GitHub Release v{version}...", "INFO")
+        subprocess.run(f"gh release delete v{version} --repo {repo_name} -y", shell=True, capture_output=True)
+        check_run(f'gh release create v{version} --repo {repo_name} --title "v{version}" --notes "{release_notes}"')
+
+    check_run(f"git checkout {DEV_BRANCH} -f")
+    log_and_print(f"{mode} successful.")
 
 def handle_dev(version, auto_yes):
-    current_branch = run("git rev-parse --abbrev-ref HEAD")
+    if get_current_branch() != DEV_BRANCH:
+        check_run(f"git checkout {DEV_BRANCH} -f")
     
-    # SAFETY CHECK: Only force checkout if we are not already on the dev branch
-    if current_branch != DEV_BRANCH:
-        log_and_print(f"Switching from {current_branch} to {DEV_BRANCH}...")
-        run(f"git checkout {DEV_BRANCH} -f")
-    else:
-        log_and_print(f"Active branch is {DEV_BRANCH}. Skipping checkout to preserve local changes.")
+    update_readme(version)
+    check_run("git add .")
 
-    update_readme_version(version)
-    run("git add .")
-    
-    if not run("git diff --cached --name-status"):
-        log_and_print("INFO: No changes detected. Workspace is clean.")
-        return
+    if not subprocess.run("git diff --cached --name-status", shell=True, capture_output=True, text=True).stdout.strip():
+        log_and_print("No changes to sync on Dev."); return
 
-    msg = "automatic dev sync" if auto_yes else input(f"Enter commit message for v{version}: ").strip()
-    if not msg: 
-        log_and_print("ABORTED: Empty commit message.")
-        return
-    
-    run(f'git commit -m "v{version} | {msg}"')
-    run(f"git push {cfg.get('DevRemote')} {DEV_BRANCH}")
+    msg = "auto sync" if auto_yes else input(f"Commit msg (v{version}): ").strip()
+    if msg:
+        check_run(f'git commit -m "v{version} | {msg}"')
+        check_run(f"git push {cfg.get('DevRemote')} {DEV_BRANCH}")
 
-def handle_release(version, auto_yes, do_zip, do_deploy):
-    log_and_print(f"CRITICAL: Starting Public Release Process v{version}")
-    if not auto_yes and input(f"Proceed with PUBLIC RELEASE? (y/n): ").lower() != 'y': 
-        sys.exit("Release aborted.")
-    
-    zip_path = None
-    if do_zip or do_deploy:
-        zip_path = create_zip(version, use_staging=True)
-    
-    run(f"git checkout {RELEASE_BRANCH} -f")
-    
-    # Strip development tools from the public branch
-    for f in ["sync.py", "build.py", "config_sync.ini", "config_check.ini"]:
-        if os.path.exists(f): os.remove(f)
-        
-    run(f"git merge {DEV_BRANCH} --squash -X theirs")
-    run("git rm -rf build_staging/ build_archive/ logs/ Dependencies/ --ignore-unmatch")
-    run("git rm *.py *.ini --ignore-unmatch")
-    
-    run(f'git commit -m "Release v{version}"')
-    run(f"git push {cfg.get('ReleaseRemote')} {RELEASE_BRANCH} --force")
-    
-    if do_deploy and zip_path:
-        repo_url = run(f"git remote get-url {cfg.get('ReleaseRemote')}")
-        repo_name = repo_url.split("github.com/")[-1].replace(".git", "")
-        deploy_cmd = f'gh release create v{version} "{zip_path}" --repo {repo_name} --title "Release v{version}" --notes "Automated release via Mamba Sync Tool."'
-        subprocess.run(deploy_cmd, shell=True)
-    
-    run(f"git checkout {DEV_BRANCH} -f")
-
+# ==============================================================================
+# MAIN
+# ==============================================================================
 if __name__ == "__main__":
+    verify_directory_safety()
     VER = get_project_version()
     LOG_FILE_PATH = os.path.join(LOG_DIR, f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_{VER}_sync.log")
 
     parser = argparse.ArgumentParser(description=f"MAMBA SYNC TOOL v{SCRIPT_VER}")
-    parser.add_argument("--release", action="store_true", help="Sync to public master branch")
-    parser.add_argument("--zip", action="store_true", help="Create source archive")
-    parser.add_argument("--deploy", action="store_true", help="Full public deploy + GitHub Release")
-    parser.add_argument("--full-backup", action="store_true", help="Complete project backup to parent directory")
-    parser.add_argument("-y", "--yes", action="store_true", help="Auto-confirm and use default commit message")
-    
-    args = parser.parse_args()
+    parser.add_argument("--deploy", action="store_true", help="Flatten master history & GitHub release.")
+    parser.add_argument("--update", action="store_true", help="Incremental master update.")
+    parser.add_argument("-y", "--yes", action="store_true", help="Auto-confirm all prompts.")
+    parser.add_argument("-o", "--open", action="store_true", help="Open log.")
 
-    if args.full_backup:
-        create_full_backup(VER)
-    elif args.release or args.deploy:
-        handle_release(VER, args.yes, args.zip, args.deploy)
-    else:
-        handle_dev(VER, args.yes)
+    args = parser.parse_args()
+    log_and_print(f"Mamba Sync Tool v{SCRIPT_VER} started.")
+
+    if args.deploy: handle_master_sync(VER, args.yes, is_deploy=True)
+    elif args.update: handle_master_sync(VER, args.yes, is_deploy=False)
+    else: handle_dev(VER, args.yes)

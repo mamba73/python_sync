@@ -1,54 +1,67 @@
 # MAMBA SYNC TOOL (sync.py)
 
 ---
-**NOTE: Dual-Repo Automation Utility.** Specifically designed to handle synchronization between private development and public production environments.
+**NOTE: Advanced Dual-Repo & Clean History Automation.** Specifically designed to bridge the gap between private development and public production environments while maintaining absolute privacy for internal tools.
 
-This tool maintains two distinct workflows: a **Private Dev** workflow that tracks all files (including documentation and tools), and a **Public Release** workflow that strips sensitive or unnecessary files before pushing to the public repository.
+This tool enforces a strict **WhiteList** policy for public releases, ensuring that only necessary source files reach the public repository, while the **Private Dev** branch remains a full-featured workspace.
 
-**Version**: 1.1.2  
+**Version**: 1.4.0  
 **Author**: mamba
 
 ---
-## 🚀 Features
+## 🚀 Key Features
 
 | Feature | Description |
 | :--- | :--- |
-| **Private Sync** | Pushes everything (including scripts and tools) to the private remote. |
-| **Public Release** | Squash merges ```dev``` to ```master``` while stripping tools, scripts, and build folders. |
-| **Auto-Conflict Fix** | Uses ```-X theirs``` to ensure dev branch always overwrites master. |
-| **Zip Archiving** | Creates Source backups or Release (DLL) packages automatically. |
-| **Full Backup** | Creates a timestamped ```.zip``` of the entire project folder in the parent directory. |
-| **GH CLI Deploy** | Automated Release ZIP creation and GitHub Release upload in one step. |
+| **WhiteList Purge** | Only allowed files (Plugin, csproj, sln, md, manifest) survive the release to Master. |
+| **Changelog Auto-Gen** | Automatically generates ```CHANGELOG.md``` by parsing commits since the last version tag. |
+| **History Flattening** | The ```--deploy``` command wipes master history for a clean, professional public appearance. |
+| **Incremental Update** | The ```--update``` command adds a single clean commit to Master without losing previous version history. |
+| **Safety First** | Includes mandatory directory verification, branch mismatch protection, and emergency backups. |
+| **GH CLI Release** | Full integration with GitHub CLI for automated Tagging and Release creation with notes. |
 
 ---
 ## 📝 Usage
 
-### 1. Dev Sync (Private)
+### 1. Standard Dev Sync (Private)
 > ```python sync.py```
-*Syncs all files to your private dev branch. Updates README version automatically.*
+*Syncs all project files (including tools) to your private remote. Preserves uncommitted local work.*
 
-### 2. Manual Backup (Source ZIP)
-> ```python sync.py --zip```
-*Creates a ZIP archive of your source code based on predefined file list.*
+### 2. Incremental Public Update
+> ```python sync.py --update```
+*Performs a WhiteList purge and adds ONE new commit to the public Master branch. Keeps existing history.*
 
-### 3. Full Project Backup
-> ```python sync.py --full-backup```
-*Creates a full archive ```[timestamp]_[version]_FULL_mambaTDS_[branch].zip``` in the parent folder.*
-
-### 4. Full Deploy (Public Release)
+### 3. Full Clean Release (Flattened)
 > ```python sync.py --deploy```
-*Master squash + DLL Release ZIP + GitHub Release upload via GH CLI.*
+*Wipes Master history, creates a single "Release vX.Y.Z" commit, and uploads a GitHub Release via GH CLI.*
+
+### 4. Silent Mode (Auto-Confirm)
+> ```python sync.py -y```
+*Skips all prompts. Ideal for quick syncs or automated pipelines.*
+
+### 5. Open Session Logs
+> ```python sync.py -o```
+*Opens the current session's log file in VS Code or your default text editor for debugging.*
+
+---
+## 📜 WhiteList (Master Branch Filter)
+To ensure privacy, only these items are allowed to reach the Public Remote:
+- ```Plugin/``` directory (Source files only)
+- ```*.csproj``` and ```*.sln``` files
+- ```manifest.xml``` and ```.gitignore```
+- ```CHANGELOG.md```, ```README.md```, and other root ```*.md``` files
+- ```LICENSE```
 
 ---
 ## 🛠️ Configuration (```config_sync.ini```)
 
 ```
 [SETTINGS]
+ProjectName = mamba.TorchDiscordSync
 DevRemote = private
 ReleaseRemote = origin
-ProjectName = mamba.TorchDiscordSync
-ScriptVersion = 1.1.2
 LogDir = logs
+VSCodePath = c:\dev\VSCode\bin\code.cmd
 ```
 
 ---
@@ -56,4 +69,4 @@ LogDir = logs
 If you like this project and want to support development:
 [Buy Me a Coffee ☕](https://buymeacoffee.com/mamba73)
 
-*Developed by [mamba73](https://github.com/mamba73). Feel free to submit issues or pull requests!*
+*Developed by [mamba73](https://github.com/mamba73). Clean code, clean history.*
