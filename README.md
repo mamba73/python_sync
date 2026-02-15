@@ -3,7 +3,7 @@
 ---
 **NOTE: Professional Dual-Repo & Changelog Automation.** This utility is designed for developers who maintain a private repository for active development and a public repository for official releases.
 
-**Version**: 1.9.1  
+**Version**: 1.9.4  
 **Author**: mamba
 
 ---

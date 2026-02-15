@@ -6,12 +6,13 @@ import re
 import os
 import configparser
 import shutil
+import zipfile
 from datetime import datetime, timedelta
 
 # ==============================================================================
 # VERSION & METADATA
 # ==============================================================================
-SCRIPT_VER = "1.9.1"
+SCRIPT_VER = "1.9.4"
 
 # --- PATHS ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,6 +38,7 @@ def load_and_sync_config():
         'ChangelogPath': 'CHANGELOG.md',
         'LogDir': 'logs',
         'KeepLogsDays': '7',
+        'MaxZipSizeMB': '100',
         'VSCodePath': r"c:\dev\VSCode\bin\code.cmd",
         'ReleaseWhiteList': r'Plugin/, manifest.xml, .gitignore, LICENSE, CHANGELOG.md, .*\.csproj$, .*\.sln$, .*\.md$',
         'BackupFormat': '{date}_{time}_{type}_{project}_v{version}_{remote}_{branch}.zip'
@@ -55,7 +57,7 @@ def load_and_sync_config():
             updated = True
 
     if config.get('SETTINGS', 'LocalFolderName') == 'CHANGE_ME':
-        if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
+        if len(sys.argv) > 1 and sys.argv in ['-h', '--help']:
             return config['SETTINGS']
             
         print(f"\n--- MAMBA SYNC TOOL SETUP ---")
@@ -157,14 +159,9 @@ def check_run(cmd, exit_on_fail=True):
 def get_current_branch():
     return subprocess.run("git rev-parse --abbrev-ref HEAD", shell=True, text=True, capture_output=True).stdout.strip()
 
-def verify_env(is_release_op=False):
-    if os.path.basename(os.getcwd()) != cfg.get('LocalFolderName'):
-        sys.exit(f"[FATAL] Directory mismatch! Expected '{cfg.get('LocalFolderName')}'")
-    
-    curr = get_current_branch()
-    if is_release_op and curr == RELEASE_BRANCH:
-        check_run(f"git checkout {DEV_BRANCH}")
-
+# ==============================================================================
+# REFINED BACKUP SYSTEM
+# ==============================================================================
 def create_backup(version, type_label, destination="parent"):
     name = BACKUP_NAME_FORMAT.format(
         date=datetime.now().strftime("%Y-%m-%d"), 
@@ -175,11 +172,37 @@ def create_backup(version, type_label, destination="parent"):
         version=version, 
         branch=get_current_branch()
     )
-    path = os.path.abspath(os.path.join(script_dir, ".." if destination == "parent" else ".", name))
+    
+    base_target_dir = os.path.abspath(os.path.join(script_dir, ".." if destination == "parent" else "."))
+    zip_path = os.path.join(base_target_dir, name)
+    
+    log_and_print(f"Archiving to {destination}: {name}", "INFO")
+    
     try:
-        shutil.make_archive(path.replace('.zip', ''), 'zip', script_dir)
-        log_and_print(f"Archive created: {path}")
-    except Exception as e: log_and_print(f"Archive error: {e}", "WARNING")
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(script_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, script_dir)
+                    if file == name: continue
+                    if type_label == "LOCAL_ZIP":
+                        allowed = False
+                        for p in RELEASE_WHITELIST:
+                            if (p.endswith("/") and rel_path.startswith(p[:-1])) or re.match(p, file):
+                                allowed = True; break
+                        if not allowed: continue
+                    zipf.write(file_path, rel_path)
+                    
+        # File size check logic restored
+        file_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
+        log_and_print(f"Archive SUCCESS: {zip_path} ({file_size_mb:.2f} MB)", "INFO")
+        
+        limit = float(cfg.get('MaxZipSizeMB', 100))
+        if file_size_mb > limit:
+            log_and_print(f"WARNING: Archive size exceeds {limit}MB! Check content.", "WARNING")
+            
+    except Exception as e:
+        log_and_print(f"Archive FAILED: {e}", "ERROR")
 
 def generate_changelog(version):
     log_and_print("Generating changelog...", "INFO")
@@ -212,14 +235,18 @@ def apply_whitelist():
 
 def handle_master_sync(version, auto, is_deploy):
     mode = "DEPLOY" if is_deploy else "UPDATE"
-    verify_env(is_release_op=True)
+    if os.path.basename(os.getcwd()) != cfg.get('LocalFolderName'):
+        sys.exit(f"[FATAL] Directory mismatch! Expected '{cfg.get('LocalFolderName')}'")
+    
+    if get_current_branch() == RELEASE_BRANCH:
+        check_run(f"git checkout {DEV_BRANCH}")
     
     notes = generate_changelog(version)
     check_run(f"git add {CHANGELOG_PATH}")
     if subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True).stdout.strip():
         check_run(f'git commit -m "v{version} | Auto-changelog update"')
 
-    create_backup(version, f"PRE_{mode}")
+    create_backup(version, f"PRE_{mode}", destination="parent")
 
     temp_branch = "temp_release_work"
     subprocess.run(f"git branch -D {temp_branch}", shell=True, capture_output=True)
@@ -261,13 +288,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=f"MAMBA SYNC TOOL v{SCRIPT_VER}")
     parser.add_argument("--deploy", action="store_true", help="Flattened Master Release")
     parser.add_argument("--update", action="store_true", help="Incremental Master Update")
-    parser.add_argument("--full-backup", action="store_true", help="Create full ZIP in parent folder")
-    parser.add_argument("--zip", action="store_true", help="Create local staging ZIP")
+    parser.add_argument("--full-backup", action="store_true", help="Full ZIP in parent folder")
+    parser.add_argument("--zip", action="store_true", help="Local staging ZIP (WhiteListed)")
     parser.add_argument("-y", "--yes", action="store_true", help="Auto-confirm all prompts")
-    parser.add_argument("-o", "--open", action="store_true", help="Open Logs")
+    parser.add_argument("-o", "--open", action="store_true", help="Open session logs")
     args = parser.parse_args()
 
-    verify_env(is_release_op=(args.deploy or args.update))
+    if os.path.basename(os.getcwd()) != cfg.get('LocalFolderName'):
+        sys.exit(f"[FATAL] Directory mismatch! Expected '{cfg.get('LocalFolderName')}'")
+
     VER = get_project_version(args.yes)
     LOG_FILE_PATH = os.path.join(LOG_DIR, f"{datetime.now().strftime('%Y%m%d')}.log")
 
@@ -280,6 +309,8 @@ if __name__ == "__main__":
     elif args.update:
         handle_master_sync(VER, args.yes, False)
     else:
+        if get_current_branch() == RELEASE_BRANCH:
+            check_run(f"git checkout {DEV_BRANCH}")
         check_run("git add .")
         if subprocess.run("git diff --cached --name-status", shell=True, capture_output=True, text=True).stdout.strip():
             msg = "auto sync" if args.yes else input(f"Dev commit msg (v{VER}): ").strip()
