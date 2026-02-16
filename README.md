@@ -12,9 +12,11 @@
 | Feature | Description |
 | :--- | :--- |
 | **Interactive Root Setup** | Automatically detects your project folder and locks operations to that specific directory for maximum safety. |
+| **Dependency Shielding** | **NEW:** Automatically shields ```Dependencies/``` during deploy to prevent accidental deletion or unwanted pushes. |
+| **Staging Asset Release** | **NEW:** Zips contents of ```bin/Release``` and uploads them as binary assets to GitHub Releases via GH CLI. |
 | **Dual-Mode Archiving** | Separate logic for ```--full-backup``` (parent dir, all files) and ```--zip``` (local dir, whitelisted only). |
-| **Smart Versioning** | Auto-increment logic with manual override. Syncs version across Config, Readme, and Manifest files. |
-| **Clean Master Sync** | Uses temporary branch isolation to update Master without risk of deleting or overwriting local Dev files. |
+| **Smart Versioning** | Uses ```manifest.xml``` as the source of truth. Synchronizes versioning across Config, Readme, and Manifest. |
+| **Clean Master Sync** | Uses temporary branch isolation to update Master without risk of leaking local Dev history. |
 | **WhiteList Filter** | Physically removes any file/folder not explicitly allowed on the public branch during the release process. |
 | **Auto-Changelog** | Parses git history since the last tag to generate professional ```CHANGELOG.md``` entries. |
 
@@ -23,7 +25,7 @@
 
 ### 1. Daily Development Sync
 > ```python sync.py -y```
-*Automated sync to your private remote. Increments version and commits using "auto sync" message.*
+*Automated sync to your private remote. Reads version from manifest and commits using "auto sync" message.*
 
 ### 2. Full Project Backup
 > ```python sync.py --full-backup```
@@ -39,7 +41,7 @@
 
 ### 5. Full Flattened Release
 > ```python sync.py --deploy```
-*Wipes Master history, creates a fresh Release commit, and uploads a GitHub Release via GH CLI.*
+*Wipes Master history, creates a fresh Release commit, and uploads a GitHub Release with Staging Assets.*
 
 ---
 ## 🛠️ Configuration (```config_sync.ini```)
@@ -48,13 +50,13 @@
 [SETTINGS]
 LocalFolderName = YourProjectFolder
 RemoteProjectName = PublicProjectName
-DefaultVersion = 1.9.3
+DefaultVersion = 1.14.0
 DevRemote = origin
 ReleaseRemote = origin
 DevBranch = dev
 ReleaseBranch = master
+BuildStagingDir = bin/Release
 ReleaseWhiteList = Plugin/, manifest.xml, .gitignore, LICENSE, CHANGELOG.md, .*\.csproj$, .*\.sln$, .*\.md$
-KeepLogsDays = 7
 ```
 
 ---
