@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.15.1] - 2026-02-16
+- v1.15.1 | auto sync
+- v1.9.5 | auto sync
+
 ## [1.9.5] - 2026-02-15
 - readme
 
