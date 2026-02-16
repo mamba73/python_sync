@@ -13,7 +13,7 @@ from datetime import datetime
 # ==============================================================================
 # VERSION & METADATA
 # ==============================================================================
-SCRIPT_VER = "1.15.1"
+SCRIPT_VER = "1.15.3"
 
 # --- PATHS ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
