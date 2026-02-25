@@ -61,7 +61,8 @@ ReleaseWhiteList = Plugin/, manifest.xml, .gitignore, LICENSE, CHANGELOG.md, .*\
 
 ---
 ## ☕ Support
-If this tool saved you time, consider supporting further development:
-[Buy Me a Coffee ☕](https://buymeacoffee.com)
+If you like this project and want to support development:
+[Buy Me a Coffee ☕](https://buymeacoffee.com/mamba73)
 
-*Developed by [mamba73](https://github.com). Automate more, worry less.*
+*Project is currently under active development.*
+*Developed by mamba* Automate more, worry less.*
