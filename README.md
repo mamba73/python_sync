@@ -1,67 +1,71 @@
 # MAMBA SYNC TOOL (sync.py)
 
 ---
-**NOTE: Professional Dual-Repo & Changelog Automation.** This utility is designed for developers who maintain a private repository for active development and a public repository for official releases.
+**NOTE: Professional Dev / Release Automation Tool**
 
-**Version**: 1.15.3  
+**Tool Version**: 1.16.1  
 **Author**: mamba
+
+---
+## 🔢 Versioning Rules
+
+- `sync.py` version ≠ project version
+- Project version priority:
+  1. `manifest.xml` → `<Version>`
+  2. `DefaultVersion` from `config_sync.ini` (fallback)
+
+The tool will always report in DEBUG output which source was used.
 
 ---
 ## 🚀 Features
 
 | Feature | Description |
-| :--- | :--- |
-| **Interactive Root Setup** | Automatically detects your project folder and locks operations to that specific directory for maximum safety. |
-| **Dependency Shielding** | **NEW:** Automatically shields ```Dependencies/``` during deploy to prevent accidental deletion or unwanted pushes. |
-| **Staging Asset Release** | **NEW:** Zips contents of ```bin/Release``` and uploads them as binary assets to GitHub Releases via GH CLI. |
-| **Dual-Mode Archiving** | Separate logic for ```--full-backup``` (parent dir, all files) and ```--zip``` (local dir, whitelisted only). |
-| **Smart Versioning** | Uses ```manifest.xml``` as the source of truth. Synchronizes versioning across Config, Readme, and Manifest. |
-| **Clean Master Sync** | Uses temporary branch isolation to update Master without risk of leaking local Dev history. |
-| **WhiteList Filter** | Physically removes any file/folder not explicitly allowed on the public branch during the release process. |
-| **Auto-Changelog** | Parses git history since the last tag to generate professional ```CHANGELOG.md``` entries. |
+|------|------------|
+| Default Dev Sync | Running without parameters syncs DEV branch |
+| Config-Driven | No hardcoded paths, whitelist, or patterns |
+| Self-Healing Config | Missing config keys are auto-added |
+| README Version Pattern | Version replacement pattern configurable |
+| DEV Changelog | Generates CHANGELOG_DEV.md (not public) |
+| Strict Whitelist ZIP | ZIP contents controlled via config |
+| Clean Master Law | Public master never inherits dev history |
+| Controlled Debug | Detailed git debug, limited ZIP noise |
 
 ---
 ## 📝 Usage
 
-### 1. Daily Development Sync
-> ```python sync.py -y```
-*Automated sync to your private remote. Reads version from manifest and commits using "auto sync" message.*
+### Default DEV Sync
+`python sync.py`
 
-### 2. Full Project Backup
-> ```python sync.py --full-backup```
-*Creates a complete ZIP archive of the entire project in the ```../``` (parent) directory.*
+### Automatic DEV Sync
+`python sync.py -y`
 
-### 3. Local Release Preview (ZIP)
-> ```python sync.py --zip```
-*Creates a local ZIP in the project root containing ONLY whitelisted files. Perfect for manual distribution.*
+### Local ZIP Only
+`python sync.py --zip`
 
-### 4. Incremental Public Update
-> ```python sync.py --update```
-*Updates Master branch with a single clean commit. Updates changelog and purges private files.*
+### Public Update
+`python sync.py --update`
 
-### 5. Full Flattened Release
-> ```python sync.py --deploy```
-*Wipes Master history, creates a fresh Release commit, and uploads a GitHub Release with Staging Assets.*
+### Public Release
+`python sync.py --release`
+
+### Destructive Deploy
+`python sync.py --deploy`
 
 ---
-## 🛠️ Configuration (```config_sync.ini```)
+## 🛠 Configuration Notes
 
-```
-[SETTINGS]
-LocalFolderName = YourProjectFolder
-RemoteProjectName = PublicProjectName
-DefaultVersion = 1.14.0
-DevRemote = origin
-ReleaseRemote = origin
-DevBranch = dev
-ReleaseBranch = master
-BuildStagingDir = bin/Release
-ReleaseWhiteList = Plugin/, manifest.xml, .gitignore, LICENSE, CHANGELOG.md, .*\.csproj$, .*\.sln$, .*\.md$
-```
+Key options in `config_sync.ini`:
+
+- `DefaultVersion` – project fallback version
+- `ReadmeVersionPattern` – regex for README replacement
+- `ReleaseWhiteList` – controls ZIP and public content
+- `BackupFormat` – naming convention for all artifacts
+- `KeepLogsDays` – log cleanup retention
+- `BuildStagingDir` / `BinaryStagingDir` – binary packaging
 
 ---
 ## ☕ Support
-If this tool saved you time, consider supporting further development:
-[Buy Me a Coffee ☕](https://buymeacoffee.com)
+If this tool saved you time, consider supporting further development.
+[Buy Me a Coffee ☕](https://buymeacoffee.com/mamba73) 
 
-*Developed by [mamba73](https://github.com). Automate more, worry less.*
+*Developed by [mamba](https://github.com/mamba73). Automate more, worry less.*
