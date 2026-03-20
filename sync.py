@@ -1,6 +1,6 @@
 # ==============================================================================
 # MAMBA SYNC TOOL
-# Version: 1.22.0
+# Version: 1.22.1
 #
 # PURPOSE:
 # Maintains two separate Git branches with different purposes and histories:
@@ -29,6 +29,10 @@
 # - Developers can git pull master without conflicts
 #
 # VERSION HISTORY:
+# 1.22.1 - Fixed branch detection (uses actual current branch, not default)
+#        - Fixed log filename format: YYYY-MM-DD_HHMMSS_sync--command.log
+#        - Auto-detect project folder name for LocalFolderName at init
+#        - Create LogDir if it doesn't exist (including parent dirs)
 # 1.22.0 - CRITICAL FIX: --deploy now creates true orphan commit (ZERO parents)
 #        - Fixed: git index cleared before orphan commit
 #        - Fixed: LogDir dynamically protected (not hardcoded)
@@ -49,7 +53,7 @@ import xml.etree.ElementTree as ET
 # ==============================================================================
 # VERSION
 # ==============================================================================
-SCRIPT_VER = "1.22.0"
+SCRIPT_VER = "1.22.1"
 
 # ==============================================================================
 # PATHS
@@ -68,8 +72,8 @@ PROTECTED_ITEMS_BASE = {".git", "config_sync.ini", "sync.py"}
 # ==============================================================================
 DEFAULT_CONFIG = {
     "SETTINGS": {
-        "LocalFolderName":           "CHANGE_ME",
-        "RemoteProjectName":         "CHANGE_ME",
+        "LocalFolderName":           os.path.basename(SCRIPT_DIR),
+        "RemoteProjectName":         os.path.basename(SCRIPT_DIR),
         "DefaultVersion":            "0.1.0",
         "DevRemote":                 "origin",
         "ReleaseRemote":             "origin",
@@ -302,6 +306,11 @@ def create_zip(source_dir, output_path, whitelist=None, include_git=False):
 def backup_name(cfg, btype, version, remote=None, branch=None):
     fmt = cfgget(cfg, "BackupFormat",
                  "{date}_{time}_{type}_{project}_v{version}_{remote}_{branch}.zip")
+    
+    # If branch not provided, use ACTUAL current branch
+    if branch is None:
+        branch = current_branch()
+    
     return fmt.format(
         date    = datetime.now().strftime("%Y-%m-%d"),
         time    = datetime.now().strftime("%H%M%S"),
@@ -309,7 +318,7 @@ def backup_name(cfg, btype, version, remote=None, branch=None):
         project = cfgget(cfg, "RemoteProjectName", "PROJECT"),
         version = version,
         remote  = remote or "LOCAL",
-        branch  = branch or cfgget(cfg, "DevBranch", "dev"),
+        branch  = branch,
     )
 
 
@@ -577,8 +586,7 @@ def cmd_zip(cfg, version):
     whitelist = parse_whitelist(cfg)
     log(f"Whitelist entries ({len(whitelist)}): {whitelist}", "DEBUG")
 
-    name = backup_name(cfg, "LOCAL_ZIP", version,
-                       remote="LOCAL", branch=cfgget(cfg, "DevBranch", "dev"))
+    name = backup_name(cfg, "LOCAL_ZIP", version, remote="LOCAL")
     out  = os.path.join(SCRIPT_DIR, name)
 
     create_zip(SCRIPT_DIR, out, whitelist=whitelist, include_git=False)
@@ -586,7 +594,7 @@ def cmd_zip(cfg, version):
 
 
 def cmd_full_backup(cfg, version):
-    name       = backup_name(cfg, "FULL_BACKUP", version, remote="LOCAL", branch="DEV")
+    name       = backup_name(cfg, "FULL_BACKUP", version, remote="LOCAL")
     parent_dir = os.path.dirname(SCRIPT_DIR)
     out        = os.path.join(parent_dir, name)
 
@@ -940,25 +948,32 @@ def main():
     # Determine command string
     if args.full_backup:
         cmd_str = "--full-backup"
+        cmd_filename = "sync--full-backup"
     elif args.zip:
         cmd_str = "--zip"
+        cmd_filename = "sync--zip"
     elif args.update:
         cmd_str = "--update"
+        cmd_filename = "sync--update"
     elif args.release:
         cmd_str = "--release"
+        cmd_filename = "sync--release"
     elif args.deploy:
         cmd_str = "--deploy"
+        cmd_filename = "sync--deploy"
     elif args.reset:
         cmd_str = "--reset"
+        cmd_filename = "sync--reset"
     else:
         cmd_str = "(default dev sync)"
+        cmd_filename = "sync--dev"
 
     # Setup logging with header
     log_dir = cfgget(cfg, "LogDir", "logs")
     os.makedirs(os.path.join(SCRIPT_DIR, log_dir), exist_ok=True)
     CURRENT_LOG_FILE = os.path.join(
         SCRIPT_DIR, log_dir,
-        f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.log"
+        f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_{cmd_filename}.log"
     )
     
     write_log_header(cmd_str, CURRENT_LOG_FILE)
