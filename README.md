@@ -3,7 +3,7 @@
 ---
 **NOTE: Professional Dev / Release Automation Tool**
 
-**Tool Version**: 1.22.1  
+**Tool Version**: 1.22.2  
 **Author**: mamba
 
 ---
