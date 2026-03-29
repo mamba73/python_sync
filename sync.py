@@ -1,6 +1,5 @@
 # ==============================================================================
 # MAMBA SYNC TOOL
-# Version: 1.22.1
 #
 # PURPOSE:
 # Maintains two separate Git branches with different purposes and histories:
@@ -29,6 +28,8 @@
 # - Developers can git pull master without conflicts
 #
 # VERSION HISTORY:
+# 1.22.2 - Fixed fallback to version.txt if manifest.xml is missing or malformed
+#        - Improved logging of version resolution steps and outcomes
 # 1.22.1 - Fixed branch detection (uses actual current branch, not default)
 #        - Fixed log filename format: YYYY-MM-DD_HHMMSS_sync--command.log
 #        - Auto-detect project folder name for LocalFolderName at init
@@ -53,7 +54,7 @@ import xml.etree.ElementTree as ET
 # ==============================================================================
 # VERSION
 # ==============================================================================
-SCRIPT_VER = "1.22.1"
+SCRIPT_VER = "1.22.2"
 
 # ==============================================================================
 # PATHS
@@ -215,16 +216,38 @@ def get_protected_items(cfg):
 # VERSION RESOLUTION
 # ==============================================================================
 def resolve_version(cfg):
+    """
+    Priority:
+    1. manifest.xml (Version node)
+    2. version.txt (Plain text)
+    3. config_sync.ini (DefaultVersion)
+    """
+    # 1. Check manifest.xml
     manifest = cfgget(cfg, "ManifestPath", "manifest.xml")
     if os.path.exists(manifest):
         try:
             tree = ET.parse(manifest)
             node = tree.getroot().find("Version")
             if node is not None and node.text:
-                log(f"Version resolved from manifest.xml: {node.text.strip()}", "DEBUG")
-                return node.text.strip()
+                v = node.text.strip()
+                log(f"Version resolved from manifest.xml: {v}", "DEBUG")
+                return v
         except Exception as e:
             log(f"Manifest read failed: {e}", "ERROR")
+
+    # 2. Check version.txt
+    version_file = os.path.join(SCRIPT_DIR, "version.txt")
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, "r", encoding="utf-8") as f:
+                v = f.read().strip()
+                if v:
+                    log(f"Version resolved from version.txt: {v}", "DEBUG")
+                    return v
+        except Exception as e:
+            log(f"version.txt read failed: {e}", "ERROR")
+
+    # 3. Fallback to config
     ver = cfgget(cfg, "DefaultVersion", "0.1.0")
     log(f"Version resolved from DefaultVersion: {ver}", "DEBUG")
     return ver
